@@ -88,6 +88,5 @@ class Sbl:
         print(sliced_signal)
 
 
-
 new_sbl = Sbl(r"D:\corpres\cta\cta0001-0010\cta0001.sbl", r"D:\corpres\cta\cta0001-0010\cta0001.seg_B1")
 new_sbl.get_signal_slice(500)
