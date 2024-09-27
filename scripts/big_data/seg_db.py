@@ -117,8 +117,9 @@ def fill_tables(connection, folder_name):
                 synt_start = seg_R2.poses[i_synt]
                 try:
                     synt_end = seg_R2.poses[i_synt + 1]
-                except IndexError:
+                except IndexError: # мало ли что
                     print("err in: ", syntagma, seg_filename_Y1)
+                    continue
                 fill_intonation_units_table(connection, wav_filename, file_unique_index, syntagma_unique_index,
                                             syntagma, synt_start, synt_end)
 
