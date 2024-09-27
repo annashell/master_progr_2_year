@@ -12,9 +12,9 @@ from scripts.nlp.seg_classes import Seg
 # синтагмы (id, filename, unit, from, to) -
 # слова (св. с синтагмой),
 # ид.транскрипция (cв. со словом),
-# реал. транскрипция (cв. со словом), ?? тут в итоге аллофоны или транскрипция ??
-# чот (связь с аллофоном, границы периода))  ?? связь с чем, если транскрипция ??
-# или надо еще табличку аллофонов??
+# реал. транскрипция (cв. со словом),
+# аллофоны (cв. со словом)
+# чот (связь с аллофоном, границы периода))
 
 
 def create_init_sql_query():
@@ -28,7 +28,8 @@ def create_init_sql_query():
                                     unit TEXT NOT NULL,
                                     start INTEGER,
                                     end INTEGER,
-                                    seg_index INTEGER);
+                                    seg_index INTEGER,
+                                    syntagma_text TEXT NOT NULL);
                                     
                                     CREATE TABLE words_units (
                                     id INTEGER PRIMARY KEY,
@@ -37,6 +38,15 @@ def create_init_sql_query():
                                     start INTEGER,
                                     end INTEGER,
                                     syntagma_index INTEGER,
+                                    seg_index INTEGER);
+                                    
+                                    CREATE TABLE allophones (
+                                    id INTEGER PRIMARY KEY,
+                                    filename TEXT NOT NULL,
+                                    unit TEXT NOT NULL,
+                                    start INTEGER,
+                                    end INTEGER,
+                                    word_index INTEGER,
                                     seg_index INTEGER);
                                     
                                     CREATE TABLE transcription (
@@ -87,7 +97,6 @@ def fill_tables(connection, folder_name):
         if seg_file in seg_list_R2:
             seg_R2 = Seg(seg_file)
             seg_R2.read_seg()
-            synt_poses = seg_R2.poses
 
             seg_filename_Y1 = seg_file.split(".")[0] + ".seg_Y1"
             seg_Y1 = Seg(seg_filename_Y1)
@@ -117,56 +126,72 @@ def fill_tables(connection, folder_name):
                 synt_start = seg_R2.poses[i_synt]
                 try:
                     synt_end = seg_R2.poses[i_synt + 1]
-                except IndexError: # мало ли что
+                except IndexError:  # мало ли что
                     print("err in: ", syntagma, seg_filename_Y1)
                     continue
-                fill_intonation_units_table(connection, wav_filename, file_unique_index, syntagma_unique_index,
-                                            syntagma, synt_start, synt_end)
+                syntagma_text = ""
 
                 for word_start, word_end in zip(words_poses, words_poses[1:]):
-                    if synt_start <= word_start <= synt_end:
+                    if synt_start <= word_start < synt_end:
+                        transcription = ""
+                        ideal_transcription = ""
+
                         # TODO некрасивое
                         seg_index_word = file_unique_index - 400
                         i_word = words_poses.index(word_start)
                         word_unique_index = int(str(syntagma_unique_index) + str(i_word))
-                        fill_words_units_table(connection, wav_filename, seg_Y1.labels[i_word], syntagma_unique_index,
+                        word = seg_Y1.labels[i_word]
+                        syntagma_text += word + " "
+                        fill_words_units_table(connection, wav_filename, word, syntagma_unique_index,
                                                word_start, word_end, word_unique_index, seg_index_word)
 
                         for alloph_start, alloph_end in zip(alloph_poses, alloph_poses[1:]):
-                            if word_start <= alloph_start <= word_end:
+                            if word_start <= alloph_start < word_end:
                                 seg_index_alloph = file_unique_index - 300
                                 i_alloph = alloph_poses.index(alloph_start)
                                 allophone_unique_index = int(str(syntagma_unique_index) + str(i_word) + str(i_alloph))
                                 alloph_name = seg_B1.labels[i_alloph]
-                                fill_transcription_table(connection, wav_filename, alloph_name,
-                                                         word_unique_index,
-                                                         alloph_start, alloph_end, allophone_unique_index,
-                                                         seg_index_alloph,
-                                                         False)
+                                fill_allophones_table(connection, wav_filename, alloph_name,
+                                                      word_unique_index,
+                                                      alloph_start, alloph_end, allophone_unique_index,
+                                                      seg_index_alloph)
+                                transcription += alloph_name
 
                                 for f0_period_start, f0_period_end in zip(f0_poses, f0_poses[1:]):
-                                    if alloph_start <= f0_period_start <= alloph_end:
+                                    if alloph_start <= f0_period_start < alloph_end:
                                         seg_index_f0 = file_unique_index - 100
                                         i_f0 = f0_poses.index(f0_period_start)
                                         f0_unique_index = int(
                                             str(syntagma_unique_index) + str(i_word) + str(i_alloph) + str(i_f0))
                                         p = seg_G1.params
                                         f0_freq = (
-                                                              f0_period_end - f0_period_start) / p.samplerate / p.sampwidth * p.samplerate
+                                                          f0_period_end - f0_period_start) / p.samplerate / p.sampwidth * p.samplerate
                                         fill_f0_table(connection, wav_filename, f0_freq,
                                                       allophone_unique_index,
                                                       f0_period_start, f0_period_end, f0_unique_index,
                                                       seg_index_f0)
 
                         for id_alloph_start, id_alloph_end in zip(id_alloph_poses, id_alloph_poses[1:]):
-                            if word_start <= id_alloph_start <= word_end:
-                                seg_index_alloph = file_unique_index - 200
+                            if word_start <= id_alloph_start < word_end:
                                 i_alloph = id_alloph_poses.index(id_alloph_start)
-                                allophone_unique_index = int(str(syntagma_unique_index) + str(i_word) + str(i_alloph))
-                                fill_transcription_table(connection, wav_filename, seg_B2.labels[i_alloph],
-                                                         word_unique_index,
-                                                         id_alloph_start, id_alloph_end, allophone_unique_index,
-                                                         seg_index_alloph, True)
+                                ideal_transcription += seg_B2.labels[i_alloph]
+
+                        seg_index_tr = file_unique_index - 300
+                        seg_index_ideal_tr = file_unique_index - 200
+                        transcription_unique_index = word_unique_index
+                        ideal_transcription_unique_index = str(int(word_unique_index) + int("00"))
+                        fill_transcription_table(connection, wav_filename, transcription,
+                                                 word_unique_index,
+                                                 word_start, word_end, transcription_unique_index,
+                                                 seg_index_tr, False)
+
+                        fill_transcription_table(connection, wav_filename, ideal_transcription,
+                                                 word_unique_index,
+                                                 word_start, word_end, ideal_transcription_unique_index,
+                                                 seg_index_ideal_tr, True)
+
+                fill_intonation_units_table(connection, wav_filename, file_unique_index, syntagma_unique_index,
+                                            syntagma, synt_start, synt_end, syntagma_text)
 
             print("Seg-file " + seg_file + " added to the database")
 
@@ -184,13 +209,13 @@ def fill_filenames_table(connection, filename, index):
     cursor.close()
 
 
-def fill_intonation_units_table(connection, wav_filename, seg_unique_index, syntagma_unique_index, syntagma, start,
-                                end):
+def fill_intonation_units_table(connection, wav_filename, seg_unique_index, syntagma_unique_index, syntagma_mark, start,
+                                end, syntagma_text):
     cursor = connection.cursor()
-    sqlite_insert_query = f"""INSERT INTO intonation_units (id, filename, unit, start, end, seg_index)  VALUES  (?, ?, ?, ?, ?, ?)"""
+    sqlite_insert_query = f"""INSERT INTO intonation_units (id, filename, unit, start, end, seg_index, syntagma_text)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
 
     data = [
-        (syntagma_unique_index, wav_filename, syntagma, start, end, seg_unique_index)
+        (syntagma_unique_index, wav_filename, syntagma_mark, start, end, seg_unique_index, syntagma_text)
     ]
     try:
         cursor.executemany(sqlite_insert_query, data)
@@ -199,8 +224,6 @@ def fill_intonation_units_table(connection, wav_filename, seg_unique_index, synt
     connection.commit()
     cursor.close()
 
-
-# fill_words_units_table(connection, wav_filename, seg_Y1.labels[i_word], seg_index_word, word_start, word_end, word_unique_index)
 
 def fill_words_units_table(connection, wav_filename, word, syntagma_index, start, end, word_unique_index,
                            seg_index_word):
@@ -218,13 +241,30 @@ def fill_words_units_table(connection, wav_filename, word, syntagma_index, start
     cursor.close()
 
 
-def fill_transcription_table(connection, wav_filename, allophone, word_index, start, end, alloph_unique_index,
+def fill_transcription_table(connection, wav_filename, transcription, word_index, start, end,
+                             transcription_unique_index,
                              seg_index_alloph, is_ideal):
     cursor = connection.cursor()
     if is_ideal:
         sqlite_insert_query = f"""INSERT INTO ideal_transcription (id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
     else:
         sqlite_insert_query = f"""INSERT INTO transcription (id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
+
+    data = [
+        (transcription_unique_index, wav_filename, transcription, start, end, word_index, seg_index_alloph)
+    ]
+    try:
+        cursor.executemany(sqlite_insert_query, data)
+    except sqlite3.Error:
+        print(data)
+    connection.commit()
+    cursor.close()
+
+
+def fill_allophones_table(connection, wav_filename, allophone, word_index, start, end, alloph_unique_index,
+                          seg_index_alloph):
+    cursor = connection.cursor()
+    sqlite_insert_query = f"""INSERT INTO allophones (id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
 
     data = [
         (alloph_unique_index, wav_filename, allophone, start, end, word_index, seg_index_alloph)
