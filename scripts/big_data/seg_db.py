@@ -199,7 +199,7 @@ def fill_tables(connection, folder_name):
                 fill_intonation_units_table(connection, wav_filename, file_unique_index, syntagma_unique_index,
                                             syntagma, synt_start, synt_end, syntagma_text)
 
-            print("Seg-file " + seg_file + " added to the database")
+            print("Seg-file " + seg_file + " was added to the database")
 
 
 def fill_filenames_table(connection, filename, index):
@@ -218,7 +218,7 @@ def fill_filenames_table(connection, filename, index):
 def fill_intonation_units_table(connection, wav_filename, seg_unique_index, syntagma_unique_index, syntagma_mark, start,
                                 end, syntagma_text):
     cursor = connection.cursor()
-    sqlite_insert_query = f"""INSERT INTO intonation_units (synatagma_id, filename, unit, start, end, seg_index, syntagma_text)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
+    sqlite_insert_query = f"""INSERT INTO intonation_units (syntagma_id, filename, unit, start, end, seg_index, syntagma_text)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
 
     data = [
         (syntagma_unique_index, wav_filename, syntagma_mark, start, end, seg_unique_index, syntagma_text)
