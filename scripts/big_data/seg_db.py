@@ -19,62 +19,68 @@ from scripts.nlp.seg_classes import Seg
 
 def create_init_sql_query():
     query: str = '''CREATE TABLE filenames (
-                                id INTEGER PRIMARY KEY,
+                                file_id INTEGER PRIMARY KEY,
                                 filename TEXT NOT NULL);
                                 
                                 CREATE TABLE intonation_units (
-                                    id INTEGER PRIMARY KEY,
+                                    syntagma_id INTEGER PRIMARY KEY,
                                     filename TEXT NOT NULL,
                                     unit TEXT NOT NULL,
                                     start INTEGER,
                                     end INTEGER,
                                     seg_index INTEGER,
-                                    syntagma_text TEXT NOT NULL);
+                                    syntagma_text TEXT NOT NULL,
+                                    FOREIGN KEY(seg_index) REFERENCES filenames(file_id));
                                     
-                                    CREATE TABLE words_units (
-                                    id INTEGER PRIMARY KEY,
+                                    CREATE TABLE word_units (
+                                    word_id INTEGER PRIMARY KEY,
                                     filename TEXT NOT NULL,
                                     unit TEXT NOT NULL,
                                     start INTEGER,
                                     end INTEGER,
                                     syntagma_index INTEGER,
-                                    seg_index INTEGER);
+                                    seg_index INTEGER,
+                                    FOREIGN KEY(syntagma_index) REFERENCES intonation_units(syntagma_id));
                                     
                                     CREATE TABLE allophones (
-                                    id INTEGER PRIMARY KEY,
+                                    allophone_id INTEGER PRIMARY KEY,
                                     filename TEXT NOT NULL,
                                     unit TEXT NOT NULL,
                                     start INTEGER,
                                     end INTEGER,
                                     word_index INTEGER,
-                                    seg_index INTEGER);
+                                    seg_index INTEGER,
+                                    FOREIGN KEY(word_index) REFERENCES word_units(word_id));
                                     
                                     CREATE TABLE transcription (
-                                    id INTEGER PRIMARY KEY,
+                                    transcription_id INTEGER PRIMARY KEY,
                                     filename TEXT NOT NULL,
                                     unit TEXT NOT NULL,
                                     start INTEGER,
                                     end INTEGER,
                                     word_index INTEGER,
-                                    seg_index INTEGER);
+                                    seg_index INTEGER,
+                                    FOREIGN KEY(word_index) REFERENCES word_units(word_id));
                                     
                                     CREATE TABLE ideal_transcription (
-                                    id INTEGER PRIMARY KEY,
+                                    ideal_transcription_id INTEGER PRIMARY KEY,
                                     filename TEXT NOT NULL,
                                     unit TEXT NOT NULL,
                                     start INTEGER,
                                     end INTEGER,
                                     word_index INTEGER,
-                                    seg_index INTEGER);
+                                    seg_index INTEGER,
+                                    FOREIGN KEY(word_index) REFERENCES word_units(word_id));
                                     
                                     CREATE TABLE f0 (
-                                    id INTEGER PRIMARY KEY,
+                                    f0_id INTEGER PRIMARY KEY,
                                     filename TEXT NOT NULL,
                                     unit TEXT NOT NULL,
                                     start INTEGER,
                                     end INTEGER,
                                     allophone_index INTEGER,
-                                    seg_index INTEGER);'''.strip()
+                                    seg_index INTEGER,
+                                    FOREIGN KEY(allophone_index) REFERENCES allophones(allophone_id));'''.strip()
 
     with open("sqlite_create_tables.sql", "w", encoding="UTF-8") as wh:
         wh.write(query)
@@ -198,7 +204,7 @@ def fill_tables(connection, folder_name):
 
 def fill_filenames_table(connection, filename, index):
     cursor = connection.cursor()
-    sqlite_insert_query = f"""INSERT INTO filenames (id, filename)  VALUES  (?, ?)"""
+    sqlite_insert_query = f"""INSERT INTO filenames (file_id, filename)  VALUES  (?, ?)"""
 
     data = [
         (index, filename)
@@ -212,7 +218,7 @@ def fill_filenames_table(connection, filename, index):
 def fill_intonation_units_table(connection, wav_filename, seg_unique_index, syntagma_unique_index, syntagma_mark, start,
                                 end, syntagma_text):
     cursor = connection.cursor()
-    sqlite_insert_query = f"""INSERT INTO intonation_units (id, filename, unit, start, end, seg_index, syntagma_text)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
+    sqlite_insert_query = f"""INSERT INTO intonation_units (synatagma_id, filename, unit, start, end, seg_index, syntagma_text)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
 
     data = [
         (syntagma_unique_index, wav_filename, syntagma_mark, start, end, seg_unique_index, syntagma_text)
@@ -228,7 +234,7 @@ def fill_intonation_units_table(connection, wav_filename, seg_unique_index, synt
 def fill_words_units_table(connection, wav_filename, word, syntagma_index, start, end, word_unique_index,
                            seg_index_word):
     cursor = connection.cursor()
-    sqlite_insert_query = f"""INSERT INTO words_units (id, filename, unit, start, end, syntagma_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
+    sqlite_insert_query = f"""INSERT INTO word_units (word_id, filename, unit, start, end, syntagma_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
 
     data = [
         (word_unique_index, wav_filename, word, start, end, syntagma_index, seg_index_word)
@@ -246,9 +252,9 @@ def fill_transcription_table(connection, wav_filename, transcription, word_index
                              seg_index_alloph, is_ideal):
     cursor = connection.cursor()
     if is_ideal:
-        sqlite_insert_query = f"""INSERT INTO ideal_transcription (id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
+        sqlite_insert_query = f"""INSERT INTO ideal_transcription (ideal_transcription_id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
     else:
-        sqlite_insert_query = f"""INSERT INTO transcription (id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
+        sqlite_insert_query = f"""INSERT INTO transcription (transcription_id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
 
     data = [
         (transcription_unique_index, wav_filename, transcription, start, end, word_index, seg_index_alloph)
@@ -264,7 +270,7 @@ def fill_transcription_table(connection, wav_filename, transcription, word_index
 def fill_allophones_table(connection, wav_filename, allophone, word_index, start, end, alloph_unique_index,
                           seg_index_alloph):
     cursor = connection.cursor()
-    sqlite_insert_query = f"""INSERT INTO allophones (id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
+    sqlite_insert_query = f"""INSERT INTO allophones (allophone_id, filename, unit, start, end, word_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
 
     data = [
         (alloph_unique_index, wav_filename, allophone, start, end, word_index, seg_index_alloph)
@@ -282,7 +288,7 @@ def fill_f0_table(connection, wav_filename, f0_freq,
                   start, end, f0_unique_index,
                   seg_index_f0):
     cursor = connection.cursor()
-    sqlite_insert_query = f"""INSERT INTO f0 (id, filename, unit, start, end, allophone_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
+    sqlite_insert_query = f"""INSERT INTO f0 (f0_id, filename, unit, start, end, allophone_index, seg_index)  VALUES  (?, ?, ?, ?, ?, ?, ?)"""
 
     data = [
         (f0_unique_index, wav_filename, f0_freq, start, end, allophone_index, seg_index_f0)
