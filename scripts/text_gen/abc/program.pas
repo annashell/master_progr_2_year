@@ -1,6 +1,6 @@
 function add10(x: integer): integer;
 begin
-    result := x + 10
+    result := x + 10;
 end;
 
 
@@ -10,5 +10,5 @@ begin
     var b := ReadReal();
     print(a, b);
     println(a);
-    println($'{a}###{b}')
+    println($'{a}###{b}');
 end.
