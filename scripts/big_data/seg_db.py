@@ -5,7 +5,6 @@ import sqlite3
 from scripts.nlp.seg_classes import Seg
 
 
-# TODO
 # Иерархическая БД сегов корпресса
 # (tables:
 # файлы (id, filename),
