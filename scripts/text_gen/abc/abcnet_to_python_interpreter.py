@@ -36,12 +36,13 @@ def var_assignment_interpreter(i, line):
 
     line = line.replace("var ", "")
     line = line.replace(":=", "=")
-    line = line.replace("readinteger();", "int(input())")
-    line = line.replace("readreal();", "float(input())")
-    line = line.replace("readlninteger();", "int(input())")
-    line = line.replace("readlnreal();", "float(input())")
-    line = line.replace("readlnstring();", "input()")
-    line = line.replace("readstring();", "input()")
+    line = line.replace(";", "")
+    line = line.replace("readinteger()", "int(input())")
+    line = line.replace("readreal()", "float(input())")
+    line = line.replace("readlninteger()", "int(input())")
+    line = line.replace("readlnreal()", "float(input())")
+    line = line.replace("readlnstring()", "input()")
+    line = line.replace("readstring()", "input()")
     return line
 
 
@@ -104,13 +105,14 @@ def translate_abcnet_program(lines: list, proc_count: int):
         translate_abcnet_program(lines, proc_count + 1)
 
     print_lines_indexes = [i for i, line in enumerate(lines) if proc_count == 0 and line.strip().startswith("print")]
-    var_assignment_lines_indexes = [i for i, line in enumerate(lines) if ":=" in line.strip()]
 
     for i in print_lines_indexes:
         lines[i] = print_interpreter(i, lines[i])
 
+    var_assignment_lines_indexes = [i for i, line in enumerate(lines) if ":=" in line.strip()]
     for i in var_assignment_lines_indexes:
         lines[i] = var_assignment_interpreter(i, lines[i])
+
     return lines
 
 
