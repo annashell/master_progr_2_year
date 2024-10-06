@@ -1,12 +1,13 @@
 function add10(x: integer): integer;
 begin
     result := x + 10;
+    result2 := x - 10;
 end;
 
 
 begin
     var a: integer;
-    a: = ReadInteger();
+    a := ReadInteger();
     var b := ReadReal();
     print(a, b);
     println(a);
