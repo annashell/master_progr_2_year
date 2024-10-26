@@ -1,89 +1,33 @@
-# Подключим модуль numpy для работы с массивами
+import sqlite3
+
 import numpy as np
-
-# Подгрузим модели кераса
-from tensorflow.keras.models import Model, load_model
-
-# Подключим нужные слои
-from tensorflow.keras.layers import Dense, Embedding, LSTM, Input
-
-# Поключим оптимайзеры
-from tensorflow.keras.optimizers import RMSprop, Adadelta
-
-# Подключим метод ограничения последовательности заданной длиной
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-
-# Подключим токенайзер
-from tensorflow.keras.preprocessing.text import Tokenizer
-
-conversations = []  # Заготовим список для пар фраз
-
-with open(r".\.\data\rus.txt", 'r', encoding='utf-8') as f:
-    lines = f.read().split('\n')  # Читаем весь файл, режем на строки
-
-# Цикл по строкам
-for i, line in enumerate(lines):
-
-    if i > 50000:  # Нам нужно только 50000 первых строк
-        break  # Заканчиваем цикл
-    try:
-        input_text, target_text, _ = line.split("\t")  # Берем очередную строку, режем по символу табуляции
-        conversations.append([input_text, target_text])  # Заполняем список пар фраз
-    except:
-        continue
+from tensorflow.python.keras.models import Model
+from keras.src.preprocessing.text import Tokenizer
+from keras.src.utils import pad_sequences
+from tensorflow.python.keras import Input
+from tensorflow.python.keras.layers import Embedding, LSTM, Dense
+from tensorflow.python.keras.optimizer_v1 import RMSprop
 
 
-def my_replacer(s):
-    ''' Функция для удаления пробелов перед знаками препинания
+def get_word_transcription_pairs(db_path):
+    questions = []
+    answers = []
 
-        Args: строка или список строк
+    sqlite_connection = sqlite3.connect(db_path)
+    cursor = sqlite_connection.cursor()
 
-        Returns: строка или список строк
-    '''
+    cursor.execute('select word_units.unit, ideal_transcription.unit from ideal_transcription inner join word_units on ideal_transcription.word_index = word_units.word_id')
+    rows = cursor.fetchall()
+    for row in rows:
+        questions.append(" ".join(list(row[0])))
+        answers.append(" ".join(list(row[1])))
 
-    if isinstance(s, str):  # Если получили строку
-
-        # Убираем перед знаками препинания пробел и возвращаем
-        return s.replace(' .', '.').replace(' ,', ',').replace(' !', '!').replace(' ?', '?')
-
-    if isinstance(s, list):  # Если получили список
-        ou = []  # Заготовим пустой список
-
-        for l in s:  # Цикл по строкам из списка
-            ou.append(l.replace(' .', '.').replace(' ,', ',').replace(' !', '!').replace(' ?',
-                                                                                         '?'))  # Убираем перед знаками препинания пробел и возвращаем
-
-        # Вернем список строк
-        return ou
+    return questions, answers
 
 
-# Собираем вопросы и ответы в списки
+questions, answers = get_word_transcription_pairs(r'D:\projects\master_progr_2_year\scripts\big_data\corpres_seg.db')
 
-questions = []  # Переменная для списка входных фраз
-answers = []  # Переменная для списка ответных фраз
-
-# Цикл по всем парам фраз
-for con in conversations:
-
-    if len(con) > 1:  # Если ответная фраза содержит более одно двух предложений
-        questions.append(my_replacer(con[0]))  # То первую в списке фразу отправляем в список входных фраз
-        replies = my_replacer(con[1:])  # А ответную составляем из последующих строк
-        ans = ' '.join(replies)  # Здесь соберем ответ
-        answers.append(ans)  # Добавим в список ответов
-    else:
-        continue  # Иначе идем на новой парой фраз
-
-# Добавим в каждую ответную фразу теги  <START> и <END>
-answers = ['<START> ' + s + ' <END>' for s in answers]
-
-# Выведем обновленные данные на экран
-print('Вопрос : {}'.format(questions[111]))  # Пример входной фразы
-print('Ответ : {}'.format(answers[111]))  # Пример ответной фразы
-
-# Создадим токенайзер
-tokenizer = Tokenizer(filters='"#$%&()*+-/;<=>@[\\]^_`{|}~\t\n', split=' ')
-
-# Загружаем в токенизатор список фраз для сборки словаря частотности
+tokenizer = Tokenizer(filters='"#$%&()*+-/;<=>@[\\]^_`{|}~\t\n')
 tokenizer.fit_on_texts(questions + answers)
 
 # Список с cодержимым словаря
@@ -91,6 +35,10 @@ vocabularyItems = list(tokenizer.word_index.items())
 
 # Размер словаря
 vocabularySize = len(vocabularyItems) + 1
+
+# Выведем фрагмент и размер словаря
+print('Фрагмент словаря : {}'.format(vocabularyItems[:50]))
+print('Размер словаря : {}'.format(vocabularySize))
 
 # Выведем фрагмент и размер словаря
 print('Фрагмент словаря : {}'.format(vocabularyItems[:50]))
@@ -110,9 +58,10 @@ encoderForInput = np.array(paddedQuestions)
 
 # Выведем на экран
 print('Пример входной фразы                         : {}'.format(questions[100]))
-print('Пример кодированной входной фразу            : {}'.format(encoderForInput[100]))
+print('Пример кодированной входной фразы            : {}'.format(encoderForInput[100]))
 print('Размеры закодированного массива входных фраз : {}'.format(encoderForInput.shape))
 print('Установленная длина входных фраз             : {}'.format(maxLenQuestions))
+
 
 # Разбиваем текст ответных фраз на последовательности индексов
 tokenizedAnswers = tokenizer.texts_to_sequences(answers)
@@ -132,11 +81,9 @@ print('Пример кодированного ответа на вход : {}'.
 print('Размеры кодированного массива ответов на вход : {}'.format(decoderForInput.shape))
 print('Установленная длина ответов на вход : {}'.format(maxLenAnswers))
 
+
 # Разбиваем текст ответов на последовательности индексов
 tokenizedAnswers = tokenizer.texts_to_sequences(answers)
-
-for i in range(len(tokenizedAnswers)):  # Для разбитых на последовательности ответов
-    tokenizedAnswers[i] = tokenizedAnswers[i][1:]  # Избавляемся от тега <START>
 
 # Делаем последовательности одной длины, заполняя нулями более короткие ответы
 paddedAnswers = pad_sequences(tokenizedAnswers, maxlen=maxLenAnswers, padding='post')
@@ -150,6 +97,7 @@ encoderInputs = Input(shape=(None,))  # Добавим входной слой
 encoderEmbedding = Embedding(vocabularySize, 200, mask_zero=True)(encoderInputs)  # Добавим эмбеддинг
 encoderOutputs, state_h, state_c = LSTM(200, return_state=True)(encoderEmbedding)  # Добавим LSTM
 encoderStates = [state_h, state_c]  # Соберем выходы lstm  в список
+
 
 # Создадим декодер
 
@@ -170,44 +118,7 @@ print(model.summary())
 model.fit([encoderForInput, decoderForInput], decoderForOutput, batch_size=256, epochs=20)
 
 # Сохраним модель на диске
-model.save('content/model_20epochs(rms).h5')
-
-
-def strToTokens(sentence: str):
-    """ Функция для удаления пробелов перед знаками препинания
-
-        Args: фраза
-
-        Returns: список токенов
-    """
-
-    # Почистим фразу
-    tmp_sent = my_replacer(sentence)
-
-    # Приведем предложение к нижнему регистру и разбирает на слова
-    words = tmp_sent.lower().split()
-
-    # Создадим список для последовательности токенов/индексов
-    tokensList = list()
-
-    # Для каждого слова в предложении
-    for word in words:
-
-        try:
-            tokensList.append(tokenizer.word_index[word])  # Определяем токенайзером индекс и добавляем в список
-        except:
-            pass  # Слова нет - просто игнорируем его
-
-    # Вернёт входную фразу в виде последовательности индексов
-    if tokensList:
-        return pad_sequences([tokensList], maxlen=maxLenQuestions, padding='post')
-
-    # Фраза из незнакомых слов - вернем None
-    return None
-
-
-emptyTargetSeq = np.zeros((1, 1))
-emptyTargetSeq[0, 0] = 5
+model.save('content/model_20epochs_transcriptor.h5')
 
 
 def makeInferenceModels():
@@ -242,7 +153,7 @@ encModel, decModel = makeInferenceModels()
 # Цикл по количеству входных фраз - их 6
 for _ in range(3):
     # подготовка
-    qua = strToTokens(input('Исходное предложение на английском: '))
+    qua = input('Слово: ')
     if qua is None:
         print("а вот спросите меня о чем-нить полезном: ")  # Выдадим дежурную фразу
         continue  # Пойдем за следущей фразой
@@ -273,8 +184,8 @@ for _ in range(3):
                 # Выбранное слово фиксируем в переменную sampledWord
                 sampledWord = word
 
-        # Если выбранным словом оказывается 'end' либо если сгенерированный ответ превышает заданную максимальную длину ответа
-        if sampledWord == 'end' or len(decodedTranslation.split()) > maxLenAnswers:
+        # если сгенерированный ответ превышает заданную максимальную длину ответа
+        if len(decodedTranslation.split()) > maxLenAnswers:
             stopCondition = True  # Срабатывает стоп-условие и прекращаем генерацию
 
         # Создаем пустой массив
@@ -289,19 +200,9 @@ for _ in range(3):
         # И продолжаем цикл с обновленными параметрами
 
     # Выводим ответ сгенерированный декодером
-    print("Перевод: ", decodedTranslation)
+    print("Транскрипция: ", decodedTranslation)
 
 
-# Questions:
-
-# What are you doing
-# This is a question
-# Give me a cup of tea
-
-# 3 epochs
-# это не end
-# это не end
-# это не не end
 
 
-# 20 epochs
+

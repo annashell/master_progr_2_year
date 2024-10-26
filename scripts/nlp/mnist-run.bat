@@ -1,2 +1,2 @@
-python .\mnist.py
+python .\mnist_tf2.py
 pause
