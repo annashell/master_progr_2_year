@@ -1,3 +1,29 @@
+from itertools import product
+from typing import Any
+
+letters = "GBRY"
+nums = "1234"
+levels = [ch + num for num, ch in product(nums, letters)]
+level_codes = [2 ** i for i in range(len(levels))]
+level2code = {i: j for i, j in zip(levels, level_codes)}
+code2level = {j: i for i, j in zip(levels, level_codes)}
+
+
+def detect_encoding(file_path):
+    encoding = "utf-8"
+    try:
+        l = open(file_path, 'r', encoding="utf-8").read()
+        if l.startswith("\ufeff"):
+            encoding = "utf-8-sig"
+    except UnicodeDecodeError:
+        try:
+            open(file_path, 'r', encoding="utf-16").read()
+            encoding = "utf-16"
+        except UnicodeError:
+            encoding = "cp1251"
+    return encoding
+
+
 class Params:
     def __init__(self, samplerate: int, sampwidth: int, num_channels: int):
         self.samplerate: int = samplerate
@@ -5,74 +31,59 @@ class Params:
         self.numchannels: int = num_channels
 
 
-def detect_encoding(filename):
-    encoding = "utf-8"
-    try:
-        l = open(filename, 'r', encoding="utf-8").read()
-        if l.startswith("\ufeff"):
-            encoding = "utf-8-sig"
-    except UnicodeDecodeError:
-        try:
-            open(filename, 'r', encoding="utf-16").read()
-            encoding = "utf-16"
-        except UnicodeError:
-            encoding = "cp1251"
-    return encoding
-
-
 class Seg:
     """
-    чтение
-    сохранение в csv
-    добавить метку
-    удалить метку
-    объединить два сега
+    Класс для работы с seg-файлами
     """
 
-    def __init__(self, filename: str = None):
+    def __init__(self, filename: str = None, labels: list = [], params: Params = Params(0, 0, 0)):
         self.filename: str = filename
-        self.poses: list = []
-        self.labels = []
-        self.params: Params = self.init_params()
+        self.labels: list = labels
+        self.params: Params = params
 
-    def return_name(self):
-        return self.filename
+    def read_seg_file(self):
+        """
+        Получение параметров и списка меток из seg-файла
+        """
+        self.params = self.init_params()
 
-    def read_seg(self):
-        lines: list = [line.strip() for line in open(self.filename, encoding=detect_encoding(self.filename))]
-        lines = lines[7:]
-        for label in lines:
-            splt = label.split(',')
-            self.poses.append(int(splt[0]))
-            self.labels.append(",".join(splt[2:]))
+        try:
+            with open(self.filename, "r", encoding=detect_encoding(self.filename)) as f:
+                lines = [line.strip() for line in f.readlines()]
+        except FileNotFoundError:
+            print(self.filename, "не найден")
 
-    def count(self):
-        return len(self.poses)
+        try:
+            ind_labels = lines.index('[LABELS]')
+        except ValueError:
+            print("Seg-файл не содержит секции LABELS")
 
-    def append(self, pos, label):
-        self.labels.append(label)
-        if len(self.poses) != 0:
-            self.poses.append(self.poses[-1] + pos)
-        else:
-            self.poses.append(pos)
+        labels = lines[ind_labels + 1:]
+        try:
+            labels_arr = [{
+                "position": int(line.split(',')[0]) // self.params.sampwidth // self.params.numchannels,
+                "level": code2level[int(line.split(',')[1])],
+                "name": line.split(',', maxsplit=2)[2].rstrip()
+            } for line in labels if line.count(",") >= 2]
+        except ValueError:
+            print("Невозможно прочитать метки, проверьте seg-файл на наличие пустых строк")
 
-    def delete(self, index: int):
-        pass
+        self.labels = labels_arr
 
     def init_params(self):
         try:
             with open(self.filename, "r", encoding=detect_encoding(self.filename)) as f:
-                lines = f.readlines()
+                lines = [line.strip() for line in f.readlines()]
         except FileNotFoundError:
             print(self.filename, "не найден")
             return
         try:
-            ind_params = lines.index("[PARAMETERS]\n")
+            ind_params = lines.index("[PARAMETERS]")
         except ValueError:
             print("Seg-файл не содержит секции PARAMETERS")
             return
         try:
-            ind_labels = lines.index('[LABELS]\n')
+            ind_labels = lines.index('[LABELS]')
         except ValueError:
             print("Seg-файл не содержит секции LABELS")
             return
@@ -88,6 +99,56 @@ class Seg:
         return Params(int(param_dict["SAMPLING_FREQ"]), int(param_dict["BYTE_PER_SAMPLE"]),
                       int(param_dict["N_CHANNEL"]))
 
+    def write_seg_file(self) -> None:
+        """
+        Запись seg-файла
+        """
+        param_defaults = {
+            "SAMPLING_FREQ": self.params.samplerate,
+            "BYTE_PER_SAMPLE": self.params.sampwidth,
+            "CODE": 0,
+            "N_CHANNEL": self.params.numchannels,
+            "N_LABEL": len(self.labels)
+        }
+        with open(self.filename, "w", encoding="utf-8") as f:
+            f.write("[PARAMETERS]\n")
+            for key in param_defaults.keys():
+                f.write(key + '=' + str(param_defaults[key]) + '\n')
+            f.write("[LABELS]\n")
+            byte_per_sample = param_defaults["BYTE_PER_SAMPLE"]
+            n_channel = param_defaults["N_CHANNEL"]
+            try:
+                for label in self.labels:
+                    f.write(
+                        f"{byte_per_sample * n_channel * label['position']},{level2code[label['level']]},{label['name']}\n")
+            except (KeyError, ValueError):
+                print("Список меток не соответствует формату")
+        print("Параметры и метки записаны в файл", self.filename)
 
-myseg = Seg(r"D:\corpres\cta\cta0001-0010\cta0001.seg_B1")
-myseg.read_seg()
+    def get_labels_from_seg(self, num_samples: int) -> list[tuple[Any, list[Any] | Any, Any]]:
+        """
+        Чтение seg-файла, возвращает данные меток для разбивки wav-файла
+        Возвращает начало и конец каждого интервала и имя соответствующей метки
+        """
+        ends = [end['position'] for start, end in zip(self.labels, self.labels[1:])]  # концы интервалов
+        ends.append(num_samples)  # добавляем в конец списка длину файла для обработки последнего интервала
+        return [(label["position"], ends[i], label["name"]) for i, label in enumerate(self.labels)]
+
+    def make_b1_seg(self, sig_parts: list, label_order: list):
+        """
+        Запись сег-файла для аудио файлов, собираемых из частей
+        :param sig_parts:
+        :param label_order:
+        :return:
+        """
+        labels = []
+        position = 0
+        for i, label in enumerate(label_order):
+            labels.append({
+                "position": position,
+                "level": 'B1',
+                "name": label
+            })
+            position += len(sig_parts[i])
+        self.labels = labels
+        self.write_seg_file()
