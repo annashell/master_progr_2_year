@@ -13,16 +13,20 @@
 </head>
 <body>
 <div class="container">
-    <h2>Файл удачно загружен</h2>
+    <h3>Файл удачно загружен</h3>
     <p>Имя файла: {{name}}</p>
     <br/>
-    <h2>Выберите обученную модель транскриптора:</h2>
-    <form action="/select_model" method="post" enctype="multipart/form-data">
-        <select class="form-select" aria-label="Default select example">
+    <h3>Выберите обученную модель транскриптора:</h3>
+    <form action="/transcription" method="post" enctype="multipart/form-data">
+        <div class="input-group">
+        <select class="form-select" id="inputGroupSelect04" aria-label="Example select with button addon" name="tr_model">
             <option selected>Модель транскриптора</option>
             <option value="1">seq2seq</option>
             <option value="2">transformer</option>
+            <option value="3">self-attention</option>
         </select>
+        <button class="btn btn-outline-secondary" type="submit">Транскрибировать</button>
+    </div>
     </form>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"

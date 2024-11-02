@@ -6,6 +6,12 @@ UPLOAD_FOLDER = './static/uploads'
 ALLOWED_EXTENSIONS = {'txt'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+model_dict = {
+    "1": "seq2seq",
+    "2": "transformer",
+    "3": "self-attention"
+}
+
 
 @app.route('/')
 def main():
@@ -17,7 +23,7 @@ def allowed_file(filename: str):
 
 
 @app.route('/success_upload', methods=['POST'])
-def success():
+def success_upload():
     if request.method == 'POST':
         f = request.files['file']
         if allowed_file(f.filename):
@@ -31,6 +37,13 @@ def success():
             return render_template("error.html", error_text="Файл неверного формата")
         return render_template("success_upload.html", name=f.filename, lines=content)
 
+@app.route('/transcription', methods=['POST'])
+def transcribe():
+    if request.method == 'POST':
+        model = request.form.get("tr_model")
+
+        return render_template("transcription.html", model=model, model_name=model_dict[model])
+
 
 if __name__ == '__main__':
-    app.run(host="172.20.67.166", debug=False)
+    app.run(host="172.20.67.166", debug=True)

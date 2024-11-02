@@ -13,13 +13,14 @@
 </head>
 <body>
 <div class="container">
-    <h2>Загрузите файл .txt для транскрибирования </h2>
-    <br/>
     <form action="/success_upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="file"/>
-        <br/>
-        <br/>
-        <input type="submit" value="Загрузить файл">
+        <div class="mb-3">
+            <label for="formFile" class="form-label">Загрузите файл .txt для транскрибирования</label>
+            <input class="form-control" type="file" id="formFile" name="file">
+        </div>
+        <div>
+            <input type="submit" value="Загрузить файл">
+        </div>
     </form>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
